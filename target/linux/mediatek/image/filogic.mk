@@ -363,7 +363,7 @@ define Device/tenda_be12-pro
   DEVICE_VENDOR := Tenda
   DEVICE_MODEL := BE12 Pro
   DEVICE_DTS := mt7987a-tenda-be12-pro
-  DEVICE_DTS_DIR := $(DTS_DIR)/
+  DEVICE_DTS_DIR := ../dts
   DEVICE_PACKAGES := mt798x-2p5g-phy-firmware-internal blkid airoha-en8811h-firmware kmod-phy-airoha-en8811h kmod-mt7992-firmware
   UBINIZE_OPTS := -E 5
   BLOCKSIZE := 128k
