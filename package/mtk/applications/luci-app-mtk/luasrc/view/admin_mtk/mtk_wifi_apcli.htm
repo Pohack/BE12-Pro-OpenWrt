@@ -136,6 +136,7 @@ var waiting_count = 0;
                             <td>
                                 <select cfg="ApCliAuthMode" id="__authModeSel" onchange="ApCliAuthMode_onchange(this.options[this.options.selectedIndex].value, false, true)">
                                     <% for _,v in ipairs(dev.ApCliAuthModeList) do %>
+                                        <% if not (dev.band == "6G" and v == "WPA2PSKWPA3PSK") then %>
                                         <% if ((cfgs.ApCliAuthMode == "OPEN" and cfgs.ApCliEncrypType== "NONE" and cfgs.ApCliOWETranIe ~= "1") or
                                                (cfgs.ApCliAuthMode == "OWE" and cfgs.ApCliEncrypType== "AES" and cfgs.ApCliOWETranIe == "1")) then
                                             if(v == "Disable") then %>
@@ -150,19 +151,20 @@ var waiting_count = 0;
                                         <% else %>
                                             <option value="<%=v%>" <% if cfgs.ApCliAuthMode==v then %> selected="selected" <% end %>><%=v%></option>
                                         <% end %>
+                                        <% end %>
                                     <% end %>
                                 </select>
                             </td>
                         </tr>
                     </tbody>
-                    <tbody id="apcli_wpa" <% if cfgs.ApCliAuthMode ~= "WPAPSK" and cfgs.ApCliAuthMode ~= "WPA2PSK" and cfgs.ApCliAuthMode ~= "WPA3PSK" and (not (cfgs.ApCliAuthMode == "OWE" and cfgs.ApCliEncrypType== "AES" and cfgs.ApCliOWETranIe ~= "1")) then %> style="display:none;"<% end %>>
+                    <tbody id="apcli_wpa" <% if cfgs.ApCliAuthMode ~= "WPAPSK" and cfgs.ApCliAuthMode ~= "WPA2PSK" and cfgs.ApCliAuthMode ~= "WPA3PSK" and cfgs.ApCliAuthMode ~= "WPA2PSKWPA3PSK" and (not (cfgs.ApCliAuthMode == "OWE" and cfgs.ApCliEncrypType== "AES" and cfgs.ApCliOWETranIe ~= "1")) then %> style="display:none;"<% end %>>
                         <tr>
                             <td><%:Root AP Encryption%></td>
                             <td>
                                 <select id="__wpaApCliEncrypType" >
                                     <% for _, v in ipairs(dev.EncryptionTypeList) do %>
                                         <% if v ~= "GCMP256" then %>
-                                            <% if cfgs.ApCliAuthMode == "WPA3PSK" or cfgs.ApCliAuthMode == "OWE" then %>
+                                            <% if cfgs.ApCliAuthMode == "WPA3PSK" or cfgs.ApCliAuthMode == "WPA2PSKWPA3PSK" or cfgs.ApCliAuthMode == "OWE" then %>
                                                 <% if v == "AES" then %>
                                                     <option value="<%=v%>" selected="selected" ><%=v%></option>
                                                 <% else %>
@@ -183,7 +185,7 @@ var waiting_count = 0;
                             </td>
                         </tr>
                     </tbody>
-                    <tbody id="apcli_pmf" <% if cfgs.ApCliAuthMode ~= "WPA2PSK" and cfgs.ApCliAuthMode ~= "WPA3PSK" then %> style="display:none;" <% end %>>
+                    <tbody id="apcli_pmf" <% if cfgs.ApCliAuthMode ~= "WPA2PSK" and cfgs.ApCliAuthMode ~= "WPA3PSK" and cfgs.ApCliAuthMode ~= "WPA2PSKWPA3PSK" then %> style="display:none;" <% end %>>
                         <tr>
                             <td><%:ApCli MFPC%></td>
                             <td>
@@ -191,7 +193,7 @@ var waiting_count = 0;
                                 <% if cfgs.ApCliPMFMFPC == "1" then %>
                                     checked="checked"
                                 <% end %>
-                                <% if cfgs.ApCliAuthMode == "WPA3PSK" then %>
+                                <% if cfgs.ApCliAuthMode == "WPA3PSK" or cfgs.ApCliAuthMode == "WPA2PSKWPA3PSK" then %>
                                     disabled="disabled"
                                 <% end %>
                                 type="checkbox">
@@ -204,20 +206,20 @@ var waiting_count = 0;
                                 <% if cfgs.ApCliPMFMFPR == "1" then %>
                                     checked="checked"
                                 <% end %>
-                                <% if cfgs.ApCliAuthMode == "WPA3PSK" then %>
+                                <% if cfgs.ApCliAuthMode == "WPA3PSK" or cfgs.ApCliAuthMode == "WPA2PSKWPA3PSK" then %>
                                     disabled="disabled"
                                 <% end %>
                                 type="checkbox">
                             </td>
                         </tr>
-                        <tr id="apcli_pmf_sha256_row" <% if cfgs.ApCliAuthMode == "WPA3PSK" then %> style="display:none" <% end %> >
+                        <tr id="apcli_pmf_sha256_row" <% if cfgs.ApCliAuthMode == "WPA3PSK" or cfgs.ApCliAuthMode == "WPA2PSKWPA3PSK" then %> style="display:none" <% end %> >
                             <td><%:ApCli MFPSHA256%></td>
                             <td>
                                 <input id="__apcli_pmfsha256"
                                 <% if cfgs.ApCliPMFSHA256 == "1" then %>
                                     checked="checked"
                                 <% end %>
-                                <% if cfgs.ApCliAuthMode == "WPA3PSK" then %>
+                                <% if cfgs.ApCliAuthMode == "WPA3PSK" or cfgs.ApCliAuthMode == "WPA2PSKWPA3PSK" then %>
                                     disabled="disabled"
                                 <% end %>
                                 type="checkbox">
@@ -568,6 +570,29 @@ var waiting_count = 0;
                     }
                 }
             break;
+            case "WPA2PSKWPA3PSK":
+                apcli_wep_tbody.style.display="none";
+                apcli_wpa_tbody.style.display="";
+                apcli_wpa_key_row.style.display="";
+                apcli_pmf_tbody.style.display="";
+                apcli_pmf_256sha_row.style.display="none";
+                apcli_pmf_pc_cbox.disabled = true;
+                apcli_pmf_pc_cbox.checked = true;
+                apcli_pmf_pr_cbox.disabled = true;
+                apcli_pmf_pr_cbox.checked = false;
+                apcli_pmf_256sha_cbox.disabled = true;
+                apcli_pmf_256sha_cbox.checked = false;
+                for (var idx=0; idx < wpa_enc_type_sel.length; idx++) {
+                    if(wpa_enc_type_sel.options[idx].value == "AES"){
+                        wpa_enc_type_sel.options[idx].disabled = false;
+                        wpa_enc_type_sel.options[idx].selected = true;
+                    }
+                    else{
+                        wpa_enc_type_sel.options[idx].disabled = true;
+                        wpa_enc_type_sel.options[idx].selected = false;
+                    }
+                }
+            break;
             case "Enhanced Open":
                 apcli_wep_tbody.style.display="none";
                 apcli_wpa_tbody.style.display="";
@@ -655,10 +680,8 @@ var waiting_count = 0;
                 ApCliAuthMode_onchange("WPA3PSK", false, false);
             break;
             case "WPA2PSKWPA3PSK":
-                auth_mode_sel.value="WPA3PSK";
-                ApCliAuthMode_onchange("WPA3PSK", false, false);
-                apcli_pmf_pr_cbox.checked = false;
-                apcli_pmf_256sha_cbox.checked = false;
+                auth_mode_sel.value="WPA2PSKWPA3PSK";
+                ApCliAuthMode_onchange("WPA2PSKWPA3PSK", false, false);
             break;
             case "OWE":
                 auth_mode_sel.value="Enhanced Open";
@@ -1053,6 +1076,19 @@ var waiting_count = 0;
                     datPmfPc.value ="1";
                     datPmfPr.value = apcli_pmf_pr_cbox.checked ? "1" : "0";
                     datPmfSha256.value = apcli_pmf_256sha_cbox.checked ? "1" : "0";
+                    datOweTranIe.value = "0";
+                }
+                else{
+                    return false;
+                }
+            break;
+            case "WPA2PSKWPA3PSK":
+                if(check_WpaKey()){
+                    datAuthMode.value = "WPA2PSKWPA3PSK";
+                    datEncType.value = "AES";
+                    datPmfPc.value ="1";
+                    datPmfPr.value = "0";
+                    datPmfSha256.value = "0";
                     datOweTranIe.value = "0";
                 }
                 else{

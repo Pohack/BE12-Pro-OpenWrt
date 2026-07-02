@@ -938,7 +938,7 @@ local ApCliAuthModeList = {
     "WPA2PSK",
     "WPA3PSK",
     -- "WPAPSKWPA2PSK",
-    -- "WPA2PSKWPA3PSK",
+    "WPA2PSKWPA3PSK",
     -- "WPA",
     -- "WPA2",
     -- "WPAWPA2",

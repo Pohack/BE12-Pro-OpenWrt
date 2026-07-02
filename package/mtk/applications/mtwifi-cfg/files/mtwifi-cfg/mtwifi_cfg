@@ -493,6 +493,10 @@ function mtwifi_cfg_setup(argv)
                 dats.ApCliPMFMFPC = 1
                 dats.ApCliPMFMFPR = 1
                 dats.ApCliPMFSHA256 = 0
+            elseif dats.ApCliAuthMode == "WPA2PSKWPA3PSK" then
+                dats.ApCliPMFMFPC = 1
+                dats.ApCliPMFMFPR = 0
+                dats.ApCliPMFSHA256 = 0
             end
             break
         end

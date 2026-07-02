@@ -166,9 +166,13 @@ function __set_wifi_apcli_security(cfgs, diff, device, devname)
             commands = string.format([[
                 iwpriv %s set ApCliAuthMode=WPA2PSKWPA3PSK;
                 iwpriv %s set ApCliEncrypType=%s;
+                iwpriv %s set ApCliPMFMFPC=1;
+                iwpriv %s set ApCliPMFMFPR=0;
+                iwpriv %s set ApCliPMFSHA256=0;
                 iwpriv %s set ApCliRekeyMethod=TIME;
                 iwpriv %s set ApCliWPAPSK="%s";]],
-            vif.vifname, vif.vifname, vif.EncrypType, vif.vifname, vif.vifname, vif.WPAPSK)
+            vif.vifname, vif.vifname, vif.EncrypType, vif.vifname, vif.vifname, vif.vifname,
+            vif.vifname, vif.vifname, vif.WPAPSK)
         elseif vif.AuthMode == "WPAPSK" then
             commands = string.format([[
                 iwpriv %s set ApCliAuthMode=WPAPSK;

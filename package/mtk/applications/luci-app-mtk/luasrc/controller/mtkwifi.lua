@@ -1277,6 +1277,13 @@ function apcli_connect(dev, vif)
     os.execute("iwpriv "..vifname.." set Channel="..cfgs.Channel)
     os.execute("iwpriv "..vifname.." set ApCliAuthMode="..cfgs.ApCliAuthMode)
     os.execute("iwpriv "..vifname.." set ApCliEncrypType="..cfgs.ApCliEncrypType)
+    if cfgs.ApCliAuthMode == "WPA2PSK"
+        or cfgs.ApCliAuthMode == "WPA3PSK"
+        or cfgs.ApCliAuthMode == "WPA2PSKWPA3PSK" then
+        os.execute("iwpriv "..vifname.." set ApCliPMFMFPC="..(cfgs.ApCliPMFMFPC or "0"))
+        os.execute("iwpriv "..vifname.." set ApCliPMFMFPR="..(cfgs.ApCliPMFMFPR or "0"))
+        os.execute("iwpriv "..vifname.." set ApCliPMFSHA256="..(cfgs.ApCliPMFSHA256 or "0"))
+    end
     if cfgs.ApCliEncrypType == "WEP" then
         os.execute("iwpriv "..vifname.." set ApCliDefaultKeyID="..cfgs.ApCliDefaultKeyID)
         if (cfgs.ApCliDefaultKeyID == "1") then
@@ -1290,7 +1297,9 @@ function apcli_connect(dev, vif)
         end
     elseif cfgs.ApCliAuthMode == "WPAPSK"
         or cfgs.ApCliAuthMode == "WPA2PSK"
-        or cfgs.ApCliAuthMode == "WPAPSKWPA2PSK" then
+        or cfgs.ApCliAuthMode == "WPA3PSK"
+        or cfgs.ApCliAuthMode == "WPAPSKWPA2PSK"
+        or cfgs.ApCliAuthMode == "WPA2PSKWPA3PSK" then
         os.execute("iwpriv "..vifname.." set ApCliWPAPSK=\""..mtkwifi.__handleSpecialChars(cfgs.ApCliWPAPSK).."\"")
     end
     os.execute("iwpriv "..vifname.." set ApCliSsid=\""..mtkwifi.__handleSpecialChars(cfgs.ApCliSsid).."\"")
@@ -1418,4 +1427,3 @@ function reset_to_defaults(devname)
     mtkwifi.__run_in_child_env(exec_reset_to_defaults_cmd, devname)
     luci.http.redirect(luci.dispatcher.build_url("admin", "network", "wifi", "loading",mtkwifi.get_referer_url()))
 end
-
