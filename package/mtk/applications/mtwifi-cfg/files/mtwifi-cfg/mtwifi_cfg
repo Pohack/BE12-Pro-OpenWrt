@@ -595,7 +595,7 @@ function mtwifi_cfg_setup(argv)
         if v.config.mode == "ap" then
             set_idx_dat(dats, apidx, "SSID", v.config.ssid)
             set_idx_dat(dats, apidx, "WPAPSK", v.config.key or "")
-            set_dat(dats, apidx, "NoForwarding", 0)
+            set_dat(dats, apidx, "NoForwarding", v.config.isolate or 0)
             set_dat(dats, apidx, "HideSSID", v.config.hidden)
             set_dat(dats, apidx, "MldGroup", v.config.mlo)
             if not v.config.mlo then
