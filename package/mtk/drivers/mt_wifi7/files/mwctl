@@ -1,0 +1,10 @@
+#!/bin/sh
+
+[ "$1" = "dev" ] && shift
+
+if [ ! -x /usr/sbin/iwpriv ]; then
+	echo "iwpriv not found; cannot run mwctl compatibility wrapper" >&2
+	exit 127
+fi
+
+exec /usr/sbin/iwpriv "$@"

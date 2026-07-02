@@ -15,7 +15,13 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        config_name: [minimal, full]
+        include:
+          - config_name: minimal
+            config_file: minimal
+          - config_name: full
+            config_file: full
+          - config_name: passwall
+            config_file: full
 
     env:
       DEBIAN_FRONTEND: noninteractive
@@ -34,7 +40,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: dl
-          key: ${{ runner.os }}-immortalwrt-dl-${{ matrix.config_name }}-${{ hashFiles(format('defconfig/{0}.config', matrix.config_name)) }}
+          key: ${{ runner.os }}-immortalwrt-dl-${{ matrix.config_name }}-${{ hashFiles(format('defconfig/{0}.config', matrix.config_file)) }}
           restore-keys: |
             ${{ runner.os }}-immortalwrt-dl-${{ matrix.config_name }}-
             ${{ runner.os }}-immortalwrt-dl-
@@ -44,9 +50,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .ccache
-          key: ${{ runner.os }}-immortalwrt-ccache-${{ matrix.config_name }}-${{ github.ref_name }}-${{ hashFiles(format('defconfig/{0}.config', matrix.config_name)) }}-${{ github.sha }}
+          key: ${{ runner.os }}-immortalwrt-ccache-${{ matrix.config_name }}-${{ github.ref_name }}-${{ hashFiles(format('defconfig/{0}.config', matrix.config_file)) }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-immortalwrt-ccache-${{ matrix.config_name }}-${{ github.ref_name }}-${{ hashFiles(format('defconfig/{0}.config', matrix.config_name)) }}-
+            ${{ runner.os }}-immortalwrt-ccache-${{ matrix.config_name }}-${{ github.ref_name }}-${{ hashFiles(format('defconfig/{0}.config', matrix.config_file)) }}-
             ${{ runner.os }}-immortalwrt-ccache-${{ matrix.config_name }}-
             ${{ runner.os }}-immortalwrt-ccache-
 
@@ -76,7 +82,8 @@ jobs:
 
       - name: Load Configuration (${{ matrix.config_name }})
         run: |
-          CONFIG_FILE="defconfig/${{ matrix.config_name }}.config"
+          CONFIG_NAME="${{ matrix.config_name }}"
+          CONFIG_FILE="defconfig/${{ matrix.config_file }}.config"
 
           set_config() {
             local key="$1"
@@ -101,10 +108,22 @@ jobs:
 
           set_config "CONFIG_CCACHE" "y"
 
+          if [ "$CONFIG_NAME" = "passwall" ]; then
+            set_config "CONFIG_PACKAGE_luci-app-passwall" "y"
+            set_config "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Haproxy" "y"
+            set_config "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Shadowsocks_Rust_Client" "y"
+            set_config "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Shadowsocks_Rust_Server" "y"
+            set_config "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Simple_Obfs" "y"
+            set_config "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_SingBox" "y"
+            set_config "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_V2ray_Geoview" "y"
+            set_config "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_V2ray_Plugin" "y"
+            set_config "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Xray" "y"
+          fi
+
           make defconfig
 
           echo "📄 Key config:"
-          grep -E '^(CONFIG_TARGET_|CONFIG_CCACHE=)' .config || true
+          grep -E '^(CONFIG_TARGET_|CONFIG_CCACHE=|CONFIG_PACKAGE_luci-app-passwall=|CONFIG_PACKAGE_luci-app-ttyd=|CONFIG_PACKAGE_ttyd=)' .config || true
 
       - name: Download Sources
         run: |
@@ -182,3 +201,7 @@ jobs:
               - `luci-app-ddns`: 动态 DNS 配置界面
               - `luci-i18n-ddns-zh-cn`: DDNS 中文语言包
               - `bind-host`: BIND DNS 服务器宿主支持
+              - `luci-app-store`: iStore 软件中心
+              - `kmod-tun` / `kmod-iptunnel` / `kmod-wireguard`: VPN 隧道基础模块
+              - `luci-app-ttyd` / `ttyd`: 网页终端
+            - **passwall**: 基于 full，额外包含 Passwall。

@@ -305,7 +305,7 @@ BACKPORT_VERSION:=$(lastword $(subst /, , $(shell find $(KERNEL_BUILD_DIR) -type
 define KernelPackage/mt_wifi7
   CATEGORY:=MTK Properties
   TITLE:=MTK wifi7 AP driver
-  DEPENDS:=blkid +MTK_WIFI7_CFG80211_SUPPORT:kmod-cfg80211 +kmod-mt_wifi_cmn
+  DEPENDS:=blkid +wireless-tools +MTK_WIFI7_CFG80211_SUPPORT:kmod-cfg80211 +kmod-mt_wifi_cmn
 ifeq ($(CONFIG_MTK_CONNINFRA_APSOC),y)
   DEPENDS+=+kmod-conninfra
 endif
@@ -469,6 +469,8 @@ endif
 	$(INSTALL_BIN) ./files/wifi_testmode.init $(1)/etc/init.d/wifi_testmode
 	$(INSTALL_BIN) ./files/wifi_fw_path.init $(1)/etc/init.d/wifi_fw_path
 	$(INSTALL_BIN) ./files/wifi_msp.init $(1)/etc/init.d/wifi_msp
+	$(INSTALL_DIR) $(1)/usr/sbin
+	$(INSTALL_BIN) ./files/mwctl $(1)/usr/sbin/mwctl
 	$(INSTALL_DIR) $(1)/sbin
 	$(INSTALL_BIN) ./files/wifi-testmode.sh $(1)/sbin/testmode.sh
 	$(INSTALL_BIN) ./files/wifi-launch_testmode.sh $(1)/sbin/launch_testmode.sh

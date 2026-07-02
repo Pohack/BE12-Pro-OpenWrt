@@ -16,6 +16,20 @@ find_emmc_factory_partition() {
         done
 }
 
+append_ate_start() {
+        local ifname="$1"
+
+        {
+                echo "if [ -x /usr/sbin/mwctl ]; then"
+                echo "        /usr/sbin/mwctl ${ifname} set ATE=ATESTART"
+                echo "elif [ -x /usr/sbin/iwpriv ]; then"
+                echo "        /usr/sbin/iwpriv ${ifname} set ATE=ATESTART"
+                echo "else"
+                echo "        echo 'mwctl/iwpriv not found; cannot start ATE' >&2"
+                echo "fi"
+        } >> ${tm_path}
+}
+
 check_testmode() {
 
 	local factory_part=$(find_emmc_factory_partition)
@@ -40,7 +54,7 @@ check_testmode() {
                                 sed -i 's/TestModeEn=0/TestModeEn=1/g' $profile_path
                                 touch ${tm_path} && chmod +x ${tm_path}
                                 IF="$(grep -r INDEX${idx}_main_ifname /etc/wireless/l1profile.dat | cut -d "=" -f 2 | cut -d ";" -f 1)"
-                                echo "mwctl ${IF} set ATE=ATESTART" >> ${tm_path}
+                                append_ate_start "${IF}"
                         else
                                 echo "card${idx} e2p_1af: Normal mode"
                                 sed -i 's/TestModeEn=1/TestModeEn=0/g' $profile_path
@@ -50,7 +64,7 @@ check_testmode() {
                         if [ $((CardTestModeEn & 1)) -eq 1 ]; then
                                 touch ${tm_path} && chmod +x ${tm_path}
                                 IF="$(grep -r INDEX${idx}_main_ifname /etc/wireless/l1profile.dat | cut -d "=" -f 2 | cut -d ";" -f 1)"
-                                echo "mwctl ${IF} set ATE=ATESTART" >> ${tm_path}
+                                append_ate_start "${IF}"
                         fi
                 fi
         done
