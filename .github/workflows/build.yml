@@ -2,59 +2,136 @@ name: Build ImmortalWrt
 
 on:
   push:
-    branches-ignore:
-      - tenda-be12-pro  # 排除 tenda-be12-pro 分支，其他所有分支都会触发
     tags:
       - v**
-  workflow_dispatch: # 允许手动在网页触发
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        config_name: [ minimal, full ]
+        config_name: [minimal, full]
+
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_COMPRESS: "true"
+      CCACHE_MAXSIZE: "1500M"
+      CCACHE_BASEDIR: ${{ github.workspace }}
+
     steps:
       - name: Checkout My Repository Source
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # 获取完整历史，方便某些脚本获取版本号（可选）
+          fetch-depth: 0
+
+      - name: Restore Download Cache
+        uses: actions/cache@v4
+        with:
+          path: dl
+          key: ${{ runner.os }}-immortalwrt-dl-${{ matrix.config_name }}-${{ hashFiles(format('defconfig/{0}.config', matrix.config_name)) }}
+          restore-keys: |
+            ${{ runner.os }}-immortalwrt-dl-${{ matrix.config_name }}-
+            ${{ runner.os }}-immortalwrt-dl-
+
+      - name: Restore Compiler Cache
+        id: ccache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .ccache
+          key: ${{ runner.os }}-immortalwrt-ccache-${{ matrix.config_name }}-${{ github.ref_name }}-${{ hashFiles(format('defconfig/{0}.config', matrix.config_name)) }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-immortalwrt-ccache-${{ matrix.config_name }}-${{ github.ref_name }}-${{ hashFiles(format('defconfig/{0}.config', matrix.config_name)) }}-
+            ${{ runner.os }}-immortalwrt-ccache-${{ matrix.config_name }}-
+            ${{ runner.os }}-immortalwrt-ccache-
 
       - name: Initialize Build Environment
-        env:
-          DEBIAN_FRONTEND: noninteractive
         run: |
-          # 安装 OpenWrt/ImmortalWrt 构建所需依赖
           sudo bash -c 'bash <(curl -s https://build-scripts.immortalwrt.org/init_build_environment.sh)'
           sudo timedatectl set-timezone "Asia/Shanghai"
-      
+
+      - name: Prepare Compiler Cache
+        run: |
+          set -euo pipefail
+
+          if ! command -v ccache >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y ccache
+          fi
+
+          mkdir -p "${CCACHE_DIR}" dl
+          ccache -M "${CCACHE_MAXSIZE}"
+          ccache --zero-stats || true
+          ccache --show-config | sed -n '1,20p'
 
       - name: Update and Install Feeds
         run: |
-          # 当前目录已经是源码根目录
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
       - name: Load Configuration (${{ matrix.config_name }})
         run: |
           CONFIG_FILE="defconfig/${{ matrix.config_name }}.config"
+
+          set_config() {
+            local key="$1"
+            local value="$2"
+
+            if grep -q "^# ${key} is not set$" .config; then
+              sed -i "s|^# ${key} is not set$|${key}=${value}|" .config
+            elif grep -q "^${key}=" .config; then
+              sed -i "s|^${key}=.*$|${key}=${value}|" .config
+            else
+              echo "${key}=${value}" >> .config
+            fi
+          }
+
           if [ ! -f "$CONFIG_FILE" ]; then
             echo "❌ Config file not found: $CONFIG_FILE"
             exit 1
           fi
+
           cp -f "$CONFIG_FILE" .config
           echo "✅ Successfully loaded $CONFIG_FILE"
 
+          set_config "CONFIG_CCACHE" "y"
+
           make defconfig
-          echo "📄 Content of .config:"
-          cat .config
+
+          echo "📄 Key config:"
+          grep -E '^(CONFIG_TARGET_|CONFIG_CCACHE=)' .config || true
+
+      - name: Download Sources
+        run: |
+          make download -j"$(nproc)"
+          find dl -type f -size -1024c -delete
 
       - name: Compile Firmware
         run: |
-          make -j$(nproc) -s V=s
+          set -euo pipefail
 
-      # ... 构建步骤 ...
-      - name: Upload Artifacts (as ZIPs, unavoidable)
+          ccache --show-stats || true
+
+          if ! make -j"$(nproc)" V=s; then
+            echo "::warning::Parallel build failed, retrying with -j1 V=s"
+            make -j1 V=s
+          fi
+
+          ccache --show-stats || true
+
+      - name: Save Compiler Cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .ccache
+          key: ${{ steps.ccache-restore.outputs.cache-primary-key }}
+
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: firmware-${{ matrix.config_name }}
@@ -89,7 +166,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           make_latest: true
-          tag_name: ${{ github.ref_name }}   # ← 此时 github.ref_name 就是 tag 名，如 v0.0.1
+          tag_name: ${{ github.ref_name }}
           files: final-release/*.bin
           draft: true
           body: |
