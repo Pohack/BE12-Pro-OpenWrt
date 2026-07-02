@@ -1,4 +1,4 @@
-name: Build ImmortalWrt
+name: Build Passwall ImmortalWrt
 
 on:
   push:
@@ -13,13 +13,6 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    strategy:
-      matrix:
-        include:
-          - config_name: minimal
-            config_file: minimal
-          - config_name: full
-            config_file: full
 
     env:
       DEBIAN_FRONTEND: noninteractive
@@ -27,6 +20,7 @@ jobs:
       CCACHE_COMPRESS: "true"
       CCACHE_MAXSIZE: "3000M"
       CCACHE_BASEDIR: ${{ github.workspace }}
+      CONFIG_FILE: defconfig/full.config
 
     steps:
       - name: Checkout My Repository Source
@@ -38,9 +32,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: dl
-          key: ${{ runner.os }}-immortalwrt-dl-${{ matrix.config_name }}-${{ hashFiles(format('defconfig/{0}.config', matrix.config_file)) }}
+          key: ${{ runner.os }}-immortalwrt-dl-passwall-${{ hashFiles('defconfig/full.config') }}
           restore-keys: |
-            ${{ runner.os }}-immortalwrt-dl-${{ matrix.config_name }}-
+            ${{ runner.os }}-immortalwrt-dl-passwall-
             ${{ runner.os }}-immortalwrt-dl-
 
       - name: Restore Compiler Cache
@@ -48,10 +42,10 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .ccache
-          key: ${{ runner.os }}-immortalwrt-ccache-${{ matrix.config_name }}-${{ github.ref_name }}-${{ hashFiles(format('defconfig/{0}.config', matrix.config_file)) }}-${{ github.sha }}
+          key: ${{ runner.os }}-immortalwrt-ccache-passwall-${{ github.ref_name }}-${{ hashFiles('defconfig/full.config') }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-immortalwrt-ccache-${{ matrix.config_name }}-${{ github.ref_name }}-${{ hashFiles(format('defconfig/{0}.config', matrix.config_file)) }}-
-            ${{ runner.os }}-immortalwrt-ccache-${{ matrix.config_name }}-
+            ${{ runner.os }}-immortalwrt-ccache-passwall-${{ github.ref_name }}-${{ hashFiles('defconfig/full.config') }}-
+            ${{ runner.os }}-immortalwrt-ccache-passwall-
             ${{ runner.os }}-immortalwrt-ccache-
 
       - name: Restore Host/Toolchain Cache
@@ -65,10 +59,10 @@ jobs:
             build_dir/host
             build_dir/hostpkg
             build_dir/toolchain-*
-          key: ${{ runner.os }}-immortalwrt-host-toolchain-${{ matrix.config_name }}-${{ github.ref_name }}-${{ hashFiles('tools/**', 'toolchain/**', 'include/**') }}-${{ github.sha }}
+          key: ${{ runner.os }}-immortalwrt-host-toolchain-passwall-${{ github.ref_name }}-${{ hashFiles('tools/**', 'toolchain/**', 'include/**') }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-immortalwrt-host-toolchain-${{ matrix.config_name }}-${{ github.ref_name }}-${{ hashFiles('tools/**', 'toolchain/**', 'include/**') }}-
-            ${{ runner.os }}-immortalwrt-host-toolchain-${{ matrix.config_name }}-
+            ${{ runner.os }}-immortalwrt-host-toolchain-passwall-${{ github.ref_name }}-${{ hashFiles('tools/**', 'toolchain/**', 'include/**') }}-
+            ${{ runner.os }}-immortalwrt-host-toolchain-passwall-
             ${{ runner.os }}-immortalwrt-host-toolchain-
 
       - name: Initialize Build Environment
@@ -95,10 +89,8 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      - name: Load Configuration (${{ matrix.config_name }})
+      - name: Load Configuration
         run: |
-          CONFIG_FILE="defconfig/${{ matrix.config_file }}.config"
-
           set_config() {
             local key="$1"
             local value="$2"
@@ -121,6 +113,15 @@ jobs:
           echo "✅ Successfully loaded $CONFIG_FILE"
 
           set_config "CONFIG_CCACHE" "y"
+          set_config "CONFIG_PACKAGE_luci-app-passwall" "y"
+          set_config "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Haproxy" "y"
+          set_config "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Shadowsocks_Rust_Client" "y"
+          set_config "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Shadowsocks_Rust_Server" "y"
+          set_config "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Simple_Obfs" "y"
+          set_config "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_SingBox" "y"
+          set_config "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_V2ray_Geoview" "y"
+          set_config "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_V2ray_Plugin" "y"
+          set_config "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Xray" "y"
 
           make defconfig
 
@@ -168,7 +169,7 @@ jobs:
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: firmware-${{ matrix.config_name }}
+          name: firmware-passwall
           path: bin/targets/mediatek/filogic/*.bin
 
   publish:
@@ -178,7 +179,7 @@ jobs:
       contents: write
     if: ${{ github.event_name == 'push' && github.ref_type == 'tag' }}
     steps:
-      - name: Download All Artifacts
+      - name: Download Artifact
         uses: actions/download-artifact@v4
         with:
           path: all-firmwares
@@ -196,27 +197,10 @@ jobs:
             done
           done
 
-      - name: Create Unified Release
+      - name: Upload Passwall Release Assets
         uses: softprops/action-gh-release@v2
         with:
           make_latest: true
           tag_name: ${{ github.ref_name }}
           files: final-release/*.bin
           draft: true
-          body: |
-            ## 📦 发布说明
-
-            ### ✨ 构建配置
-            - **minimal**: 最小化构建，仅包含核心功能。
-            - **full**: 完整构建，包含以下额外预装插件：
-              - `luci-proto-wireguard`: WireGuard 协议支持
-              - `luci-app-wol`: 网络唤醒 (WoL) 功能
-              - `luci-i18n-wol-zh-cn`: WoL 中文语言包
-              - `ddns-scripts-cloudflare`: Cloudflare DDNS 脚本
-              - `luci-app-ddns`: 动态 DNS 配置界面
-              - `luci-i18n-ddns-zh-cn`: DDNS 中文语言包
-              - `bind-host`: BIND DNS 服务器宿主支持
-              - `luci-app-store`: iStore 软件中心
-              - `kmod-tun` / `kmod-iptunnel` / `kmod-wireguard`: VPN 隧道基础模块
-              - `luci-app-ttyd` / `ttyd`: 网页终端
-            - **passwall**: 单独 workflow 构建，基于 full 额外包含 Passwall，并追加到同一发布。
