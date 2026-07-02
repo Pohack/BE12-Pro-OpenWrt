@@ -456,7 +456,7 @@ define Device/Init
   ##@ Artifacts to build.
   ARTIFACTS :=
   ##@ Device image prefix.
-  DEVICE_IMG_PREFIX := $(IMG_PREFIX)-$(1)
+  DEVICE_IMG_PREFIX := $(1)
   ##@ Device image name.
   DEVICE_IMG_NAME = $$(DEVICE_IMG_PREFIX)-$$(1)-$$(2)
   ##@ Factory image name.
