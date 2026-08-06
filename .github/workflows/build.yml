@@ -13,34 +13,27 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    strategy:
-      matrix:
-        include:
-          - config_name: minimal
-            config_file: minimal
-          - config_name: full
-            config_file: full
-
     env:
       DEBIAN_FRONTEND: noninteractive
       CCACHE_DIR: ${{ github.workspace }}/.ccache
       CCACHE_COMPRESS: "true"
       CCACHE_MAXSIZE: "3000M"
       CCACHE_BASEDIR: ${{ github.workspace }}
+      CONFIG_FILE: defconfig/be12-pro.config
 
     steps:
       - name: Checkout My Repository Source
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Restore Download Cache
         uses: actions/cache@v4
         with:
           path: dl
-          key: ${{ runner.os }}-immortalwrt-dl-${{ matrix.config_name }}-${{ hashFiles(format('defconfig/{0}.config', matrix.config_file)) }}
+          key: ${{ runner.os }}-immortalwrt-dl-be12-pro-${{ hashFiles('defconfig/be12-pro.config') }}
           restore-keys: |
-            ${{ runner.os }}-immortalwrt-dl-${{ matrix.config_name }}-
+            ${{ runner.os }}-immortalwrt-dl-be12-pro-
             ${{ runner.os }}-immortalwrt-dl-
 
       - name: Restore Compiler Cache
@@ -48,10 +41,10 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .ccache
-          key: ${{ runner.os }}-immortalwrt-ccache-${{ matrix.config_name }}-${{ github.ref_name }}-${{ hashFiles(format('defconfig/{0}.config', matrix.config_file)) }}-${{ github.sha }}
+          key: ${{ runner.os }}-immortalwrt-ccache-be12-pro-${{ github.ref_name }}-${{ hashFiles('defconfig/be12-pro.config') }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-immortalwrt-ccache-${{ matrix.config_name }}-${{ github.ref_name }}-${{ hashFiles(format('defconfig/{0}.config', matrix.config_file)) }}-
-            ${{ runner.os }}-immortalwrt-ccache-${{ matrix.config_name }}-
+            ${{ runner.os }}-immortalwrt-ccache-be12-pro-${{ github.ref_name }}-${{ hashFiles('defconfig/be12-pro.config') }}-
+            ${{ runner.os }}-immortalwrt-ccache-be12-pro-
             ${{ runner.os }}-immortalwrt-ccache-
 
       - name: Restore Host/Toolchain Cache
@@ -65,10 +58,10 @@ jobs:
             build_dir/host
             build_dir/hostpkg
             build_dir/toolchain-*
-          key: ${{ runner.os }}-immortalwrt-host-toolchain-${{ matrix.config_name }}-${{ github.ref_name }}-${{ hashFiles('tools/**', 'toolchain/**', 'include/**') }}-${{ github.sha }}
+          key: ${{ runner.os }}-immortalwrt-host-toolchain-be12-pro-${{ github.ref_name }}-${{ hashFiles('tools/**', 'toolchain/**', 'include/**') }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-immortalwrt-host-toolchain-${{ matrix.config_name }}-${{ github.ref_name }}-${{ hashFiles('tools/**', 'toolchain/**', 'include/**') }}-
-            ${{ runner.os }}-immortalwrt-host-toolchain-${{ matrix.config_name }}-
+            ${{ runner.os }}-immortalwrt-host-toolchain-be12-pro-${{ github.ref_name }}-${{ hashFiles('tools/**', 'toolchain/**', 'include/**') }}-
+            ${{ runner.os }}-immortalwrt-host-toolchain-be12-pro-
             ${{ runner.os }}-immortalwrt-host-toolchain-
 
       - name: Initialize Build Environment
@@ -95,10 +88,12 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      - name: Load Configuration (${{ matrix.config_name }})
+      - name: Clone Aurora Theme
         run: |
-          CONFIG_FILE="defconfig/${{ matrix.config_file }}.config"
+          git clone --depth=1 https://github.com/eamonxg/luci-theme-aurora.git package/luci-theme-aurora
 
+      - name: Load Configuration
+        run: |
           set_config() {
             local key="$1"
             local value="$2"
@@ -118,14 +113,14 @@ jobs:
           fi
 
           cp -f "$CONFIG_FILE" .config
-          echo "✅ Successfully loaded $CONFIG_FILE"
+          echo "✅ Loaded $CONFIG_FILE"
 
           set_config "CONFIG_CCACHE" "y"
 
           make defconfig
 
           echo "📄 Key config:"
-          grep -E '^(CONFIG_TARGET_|CONFIG_CCACHE=|CONFIG_PACKAGE_luci-app-passwall=|CONFIG_PACKAGE_luci-app-ttyd=|CONFIG_PACKAGE_ttyd=)' .config || true
+          grep -E '^(CONFIG_TARGET_|CONFIG_CCACHE=)' .config || true
 
       - name: Download Sources
         run: |
@@ -168,8 +163,11 @@ jobs:
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: firmware-${{ matrix.config_name }}
-          path: bin/targets/mediatek/filogic/*.bin
+          name: firmware-be12-pro
+          path: |
+            bin/targets/mediatek/filogic/**/*.bin
+            bin/targets/mediatek/filogic/**/*.manifest
+            bin/targets/mediatek/filogic/**/sha256sums*
 
   publish:
     needs: build
@@ -187,11 +185,20 @@ jobs:
         run: |
           mkdir -p final-release
           for config_dir in all-firmwares/*/; do
-            config_name=$(basename "$config_dir")
             for bin_file in "$config_dir"*.bin; do
               if [ -f "$bin_file" ]; then
                 base=$(basename "$bin_file")
-                cp "$bin_file" "final-release/${base%.bin}-${config_name}.bin"
+                case "$base" in
+                  *sysupgrade.bin)
+                    cp "$bin_file" "final-release/be12-pro-sysupgrade.bin"
+                    ;;
+                  *factory.bin)
+                    cp "$bin_file" "final-release/be12-pro-factory.bin"
+                    ;;
+                  *)
+                    cp "$bin_file" "final-release/${base}"
+                    ;;
+                esac
               fi
             done
           done
@@ -202,21 +209,30 @@ jobs:
           make_latest: true
           tag_name: ${{ github.ref_name }}
           files: final-release/*.bin
-          draft: true
+          draft: false
           body: |
-            ## 📦 发布说明
+            ## 📦 BE12-Pro 固件发布
 
-            ### ✨ 构建配置
-            - **minimal**: 最小化构建，仅包含核心功能。
-            - **full**: 完整构建，包含以下额外预装插件：
-              - `luci-proto-wireguard`: WireGuard 协议支持
-              - `luci-app-wol`: 网络唤醒 (WoL) 功能
-              - `luci-i18n-wol-zh-cn`: WoL 中文语言包
-              - `ddns-scripts-cloudflare`: Cloudflare DDNS 脚本
-              - `luci-app-ddns`: 动态 DNS 配置界面
-              - `luci-i18n-ddns-zh-cn`: DDNS 中文语言包
-              - `bind-host`: BIND DNS 服务器宿主支持
-              - `luci-app-store`: iStore 软件中心
-              - `kmod-tun` / `kmod-iptunnel` / `kmod-wireguard`: VPN 隧道基础模块
-              - `luci-app-ttyd` / `ttyd`: 网页终端
-            - **passwall**: 单独 workflow 构建，基于 full 额外包含 Passwall，并追加到同一发布。
+            ### 🔧 固件信息
+            - **设备**: Tenda BE12-Pro
+            - **架构**: aarch64_cortex-a53
+            - **平台**: mediatek/filogic
+
+            ### 🔑 登录信息
+            - **后台地址**: http://192.168.6.1
+            - **用户名**: `root`
+            - **密码**: `admin`
+
+            ### 📦 预装插件
+            - MosDNS（DNS 分流）
+            - HomeProxy（代理工具，含 sing-box）
+            - Aurora 主题 + 配置
+            - Statistics + CPU 频率监控
+            - RamFree（一键释放内存）
+            - DDNS（含 Cloudflare 支持）
+            - WireGuard（VPN 协议）
+            - WOL（网络唤醒）
+
+            ### 📥 文件说明
+            - `be12-pro-sysupgrade.bin`：sysupgrade 固件
+            - `be12-pro-factory.bin`：factory 固件（如存在）
